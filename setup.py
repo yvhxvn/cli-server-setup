@@ -3,6 +3,7 @@
 import os
 import subprocess
 import sys
+import curses
 import logging
 
 logging.basicConfig(
@@ -56,43 +57,66 @@ def remove_package(name):
         print(f"Error occurred while removing {name}.\n")
 
 # Display the menu
-def show_menu():
-    print("""
-========= MENU =========
-1. Install nginx
-2. Install ufw
-3. Install fail2ban
-4. Install all
-5. Remove all packages
-6. Exit
-""")
+MENU_OPTIONS = [
+    "1. Install Nginx",
+    "2. Install UFW (Uncomplicated Firewall)",
+    "3. Install Fail2Ban",
+    "4. Install All Packages",
+    "5. Remove All Packages",
+    "6. Exit"
+]
+
+def tui_menu(stdscr):
+    """Display a simple text-based menu using curses."""
+    curses.curs_set(0)  # Hide the cursor
+    current_row = 0
+    stdscr_row = 0
+    stdscr.addstr(stdscr_row, 0, "Server Setup Menu", curses.A_BOLD)
+    selected = [False] * len(MENU_OPTIONS)
+
+    while True:
+        stdscr.clear()
+        stdscr.addstr(0, 0, "Use ↑ ↓ to navigate. [Space] to select. [Enter] to confirm.\n\n")
+
+        for i, option in enumerate(MENU_OPTIONS):
+            mark = "[*]" if selected[i] else "[ ]"
+            if i == current_row:
+                stdscr.addstr(f">{mark} {option}\n", curses.A_REVERSE)
+            else:
+                stdscr.addstr(f" {mark} {option}\n")
+
+        key = stdscr.getch()
+
+        if key == curses.KEY_UP and current_row > 0:
+            current_row -= 1
+        elif key == curses.KEY_DOWN and current_row < len(MENU_OPTIONS) - 1:
+            current_row += 1
+        elif key == ord(" "):
+            selected[current_row] = not selected[current_row]
+        elif key == curses.KEY_ENTER or key in [10, 13]:
+            return selected
 
 # Main program logic
 def main():
     check_root()
     update_system()
 
-    while True:
-        show_menu()
-        choice = input("Enter your option number: ").strip()
+    selected = curses.wrapper(tui_menu)
 
-        if choice == "1":
-            install_package("nginx")
-        elif choice == "2":
-            install_package("ufw")
-        elif choice == "3":
-            install_package("fail2ban")
-        elif choice == "4":
-            for pkg in ["nginx", "ufw", "fail2ban"]:
-                install_package(pkg)
-        elif choice == "5":
-            for pkg in ["nginx", "ufw", "fail2ban"]:
-                remove_package(pkg)
-        elif choice == "6":
-            print("Exiting...")
-            break
-        else:
-            print("Invalid choice. Please try again.")
+    if selected[0]:  # Install Nginx
+        install_package("nginx")
+    if selected[1]:  # Install UFW
+        install_package("ufw")
+    if selected[2]:  # Install Fail2Ban
+        install_package("fail2ban")
+    if selected[3]:  # Install All Packages
+        for pkg in ["nginx", "ufw", "fail2ban"]:
+            install_package(pkg)
+    if selected[4]:  # Remove All Packages
+        for pkg in ["nginx", "ufw", "fail2ban"]:
+            remove_package(pkg)
+
+    print("Exiting...")
 
 if __name__ == "__main__":
     main()
