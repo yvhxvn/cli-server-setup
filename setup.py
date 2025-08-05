@@ -13,12 +13,14 @@ logging.basicConfig(
 )
 
 # Check if the script is run as root
+
 def check_root():
     if os.geteuid() != 0:
         print("This script must be run as root (use sudo).")
         sys.exit(1)
 
 # Update the system
+
 def update_system():
     """Update the system packages."""
     print("Updating system...")
@@ -27,11 +29,20 @@ def update_system():
     print("System update completed.\n")
 
 # Check if a package is installed
+
 def is_installed(package_name):
-    result = subprocess.run(['which', package_name], stdout=subprocess.PIPE)
-    return result.returncode == 0
+    try:
+        dpkg_check = subprocess.run(
+            ["dpkg", "-s", package_name],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        return dpkg_check.returncode == 0
+    except Exception:
+        return False
 
 # Install a package
+
 def install_package(name):
     try:
         logging.info(f"Attempting to install {name}...")
@@ -44,6 +55,7 @@ def install_package(name):
         print(f"Error occurred while installing {name}.\n")
 
 # Remove a package
+
 def remove_package(name):
     try:
         logging.info(f"Attempting to remove {name}...")
@@ -57,18 +69,23 @@ def remove_package(name):
         print(f"Error occurred while removing {name}.\n")
 
 # Display the menu
+
 MENU_OPTIONS = [
-    "1. Install Nginx",
-    "2. Install UFW (Uncomplicated Firewall)",
-    "3. Install Fail2Ban",
-    "4. Install All Packages",
-    "5. Remove All Packages",
-    "6. Exit"
+    "1. Web Server (nginx, ufw, fail2ban, certbot)",
+    "2. SSH Minimal (ufw, ssh, denyroot)",
+    "3. Install Nginx",
+    "4. Install UFW (Uncomplicated Firewall)",
+    "5. Install Fail2Ban",
+    "6. Install All Packages",
+    "7. Remove All Packages",
+    "8. Exit"
 ]
+
+# Text-based User Interface (TUI) menu using curses
 
 def tui_menu(stdscr):
     """Display a simple text-based menu using curses."""
-    curses.curs_set(0)  # Hide the cursor
+    curses.curs_set(0)
     current_row = 0
     stdscr_row = 0
     stdscr.addstr(stdscr_row, 0, "Server Setup Menu", curses.A_BOLD)
@@ -97,22 +114,29 @@ def tui_menu(stdscr):
             return selected
 
 # Main program logic
+
 def main():
     check_root()
     update_system()
 
     selected = curses.wrapper(tui_menu)
 
-    if selected[0]:  # Install Nginx
+    if selected[0]:  # Install Web Server (nginx, ufw, fail2ban, certbot)
+        for pkg in ["nginx", "ufw", "fail2ban", "certbot"]:
+            install_package(pkg)
+    if selected[1]:  # Install SSH Minimal (ufw, ssh, denyroot)
+        for pkg in ["ufw", "ssh", "denyroot"]:
+            install_package(pkg)
+    if selected[2]:  # Install Nginx
         install_package("nginx")
-    if selected[1]:  # Install UFW
+    if selected[3]:  # Install UFW
         install_package("ufw")
-    if selected[2]:  # Install Fail2Ban
+    if selected[4]:  # Install Fail2Ban
         install_package("fail2ban")
-    if selected[3]:  # Install All Packages
+    if selected[5]:  # Install All Packages
         for pkg in ["nginx", "ufw", "fail2ban"]:
             install_package(pkg)
-    if selected[4]:  # Remove All Packages
+    if selected[6]:  # Remove All Packages
         for pkg in ["nginx", "ufw", "fail2ban"]:
             remove_package(pkg)
 
