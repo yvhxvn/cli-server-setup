@@ -12,25 +12,18 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
-# Check if the script is run as root
-
 def check_root():
     if os.geteuid() != 0:
         print("This script must be run as root (use sudo).")
         sys.exit(1)
 
-# Update the system
-
 def update_system():
-    """Update the system packages."""
     print("Updating system...")
     subprocess.run(["apt", "update"], check=True)
     subprocess.run(["apt", "upgrade", "-y"], check=True)
     print("System update completed.\n")
 
-# Check if a package is installed
-
-def is_installed(package_name):
+def installed(package_name):
     try:
         dpkg_check = subprocess.run(
             ["dpkg", "-s", package_name],
@@ -40,8 +33,6 @@ def is_installed(package_name):
         return dpkg_check.returncode == 0
     except Exception:
         return False
-
-# Install a package
 
 def install_package(name):
     try:
@@ -53,8 +44,6 @@ def install_package(name):
     except subprocess.CalledProcessError as e:
         logging.error(f"Error occurred while installing {name}: {e}")
         print(f"Error occurred while installing {name}.\n")
-
-# Remove a package
 
 def remove_package(name):
     try:
@@ -68,34 +57,47 @@ def remove_package(name):
         logging.error(f"Error occurred while removing {name}: {e}")
         print(f"Error occurred while removing {name}.\n")
 
-# Display the menu
+def all_installed(package_names):
+    return all(installed(pkg) for pkg in package_names)
 
-MENU_OPTIONS = [
-    "1. Web Server (nginx, ufw, fail2ban, certbot)",
-    "2. SSH Minimal (ufw, ssh, denyroot)",
-    "3. Install Nginx",
-    "4. Install UFW (Uncomplicated Firewall)",
-    "5. Install Fail2Ban",
-    "6. Install All Packages",
-    "7. Remove All Packages",
-    "8. Exit"
-]
+def menu_options():
+    options = [
+        ("Web Server (nginx, ufw, fail2ban, certbot)", ["nginx", "ufw", "fail2ban", "certbot"]),
+        ("SSH Minimal (ufw, ssh, denyroot)", ["ufw", "ssh", "denyroot"]),
+        ("Game Server (steamcmd, wine, screen)", ["steamcmd", "wine", "screen"]),
+        ("Dev Environment (git, docker, zsh, neovim)", ["git", "docker.io", "zsh", "neovim"]),
+        ("Install Nginx", ["nginx"]),
+        ("Install UFW (Uncomplicated Firewall)", ["ufw"]),
+        ("Install Fail2Ban", ["fail2ban"]),
+        ("Install Certbot (for SSL)", ["certbot"]),
+        ("Install Docker", ["docker.io"]),
+        ("Install Git", ["git"]),
+        ("Remove All Packages", []),
+        ("Exit", [])
+    ]
 
-# Text-based User Interface (TUI) menu using curses
+    max_len = max(len(label) for label, _ in options)
+    updated_menu = []
+    for label, packages in options:
+        if packages:
+            status = "[Installed]" if all_installed(packages) else ""
+        else:
+            status = ""
+        padded_label = label.ljust(max_len + 2)
+        updated_menu.append((f"{padded_label} {status}", packages))
+    return updated_menu
 
 def tui_menu(stdscr):
-    """Display a simple text-based menu using curses."""
     curses.curs_set(0)
     current_row = 0
-    stdscr_row = 0
-    stdscr.addstr(stdscr_row, 0, "Server Setup Menu", curses.A_BOLD)
-    selected = [False] * len(MENU_OPTIONS)
+    selected = [False] * len(menu_options())
 
     while True:
+        menu = menu_options()
         stdscr.clear()
         stdscr.addstr(0, 0, "Use ↑ ↓ to navigate. [Space] to select. [Enter] to confirm.\n\n")
 
-        for i, option in enumerate(MENU_OPTIONS):
+        for i, (option, _) in enumerate(menu):
             mark = "[*]" if selected[i] else "[ ]"
             if i == current_row:
                 stdscr.addstr(f">{mark} {option}\n", curses.A_REVERSE)
@@ -103,44 +105,38 @@ def tui_menu(stdscr):
                 stdscr.addstr(f" {mark} {option}\n")
 
         key = stdscr.getch()
-
         if key == curses.KEY_UP and current_row > 0:
             current_row -= 1
-        elif key == curses.KEY_DOWN and current_row < len(MENU_OPTIONS) - 1:
+        elif key == curses.KEY_DOWN and current_row < len(menu) - 1:
             current_row += 1
         elif key == ord(" "):
             selected[current_row] = not selected[current_row]
         elif key == curses.KEY_ENTER or key in [10, 13]:
             return selected
 
-# Main program logic
-
 def main():
     check_root()
     update_system()
 
-    selected = curses.wrapper(tui_menu)
+    while True:
+        selected = curses.wrapper(tui_menu)
+        menu = menu_options()
 
-    if selected[0]:  # Install Web Server (nginx, ufw, fail2ban, certbot)
-        for pkg in ["nginx", "ufw", "fail2ban", "certbot"]:
-            install_package(pkg)
-    if selected[1]:  # Install SSH Minimal (ufw, ssh, denyroot)
-        for pkg in ["ufw", "ssh", "denyroot"]:
-            install_package(pkg)
-    if selected[2]:  # Install Nginx
-        install_package("nginx")
-    if selected[3]:  # Install UFW
-        install_package("ufw")
-    if selected[4]:  # Install Fail2Ban
-        install_package("fail2ban")
-    if selected[5]:  # Install All Packages
-        for pkg in ["nginx", "ufw", "fail2ban"]:
-            install_package(pkg)
-    if selected[6]:  # Remove All Packages
-        for pkg in ["nginx", "ufw", "fail2ban"]:
-            remove_package(pkg)
-
-    print("Exiting...")
+        for i, (_, packages) in enumerate(menu):
+            if selected[i]:
+                if not packages and "Remove All" in menu[i][0]:
+                    for pkg in [
+                        "nginx", "ufw", "fail2ban", "certbot", "docker.io", 
+                        "git", "steamcmd", "wine", "screen", "zsh", "neovim", 
+                        "ssh", "denyroot"
+                    ]:
+                        remove_package(pkg)
+                elif not packages and "Exit" in menu[i][0]:
+                    print("Exiting...")
+                    return
+                else:
+                    for pkg in packages:
+                        install_package(pkg)
 
 if __name__ == "__main__":
     main()
